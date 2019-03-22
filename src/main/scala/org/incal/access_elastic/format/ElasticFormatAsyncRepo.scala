@@ -5,13 +5,12 @@ import org.incal.access_elastic.{ElasticAsyncRepo, ElasticSetting}
 import org.incal.core.Identity
 import play.api.libs.json.Format
 
-class ElasticFormatAsyncRepo[E, ID](
+abstract class ElasticFormatAsyncRepo[E, ID](
   indexName: String,
   typeName: String,
-  client: ElasticClient,
   setting: ElasticSetting)(
   implicit val format: Format[E], val manifest: Manifest[E], identity: Identity[E, ID]
-) extends ElasticAsyncRepo[E, ID](indexName, typeName, client, setting) with ElasticFormatSerializer[E] {
+) extends ElasticAsyncRepo[E, ID](indexName, typeName, setting) with ElasticFormatSerializer[E] {
 
   private implicit val indexable = toIndexable[E]
 

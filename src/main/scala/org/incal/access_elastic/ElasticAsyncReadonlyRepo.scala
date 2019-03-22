@@ -34,7 +34,6 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
   indexName: String,
   typeName: String,
   identityName : String,
-  val client: ElasticClient,
   setting: ElasticSetting
 ) extends AsyncReadonlyRepo[E, ID]
   with ElasticSerializer[E]
@@ -44,6 +43,8 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
   protected val unboundLimit = Integer.MAX_VALUE
   protected val scrollKeepAlive = "3m"
   protected val logger = LoggerFactory.getLogger(this.getClass)
+
+  protected val client: ElasticClient
 
   def get(id: ID): Future[Option[E]] =
     client execute {

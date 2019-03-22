@@ -24,10 +24,9 @@ import scala.concurrent.Future
 abstract class ElasticAsyncRepo[E, ID](
     indexName: String,
     typeName: String,
-    client: ElasticClient,
     setting: ElasticSetting)(
     implicit identity: Identity[E, ID]
-  ) extends ElasticAsyncReadonlyRepo[E, ID](indexName, typeName, identity.name, client, setting) with AsyncRepo[E, ID] {
+  ) extends ElasticAsyncReadonlyRepo[E, ID](indexName, typeName, identity.name, setting) with AsyncRepo[E, ID] {
 
   protected def flushIndex: Future[Unit] = {
     client execute {flush index indexName} map (_ => ())

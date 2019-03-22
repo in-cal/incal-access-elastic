@@ -24,10 +24,9 @@ import scala.concurrent.Future
 abstract class ElasticAsyncCrudRepo[E, ID](
   indexName: String,
   typeName: String,
-  client: ElasticClient,
   setting: ElasticSetting = ElasticSetting())(
   implicit identity: Identity[E, ID]
-) extends ElasticAsyncRepo[E, ID](indexName, typeName, client, setting) with AsyncCrudRepo[E, ID] {
+) extends ElasticAsyncRepo[E, ID](indexName, typeName, setting) with AsyncCrudRepo[E, ID] {
 
   override def update(entity: E): Future[ID] = {
     val (updateDef, id) = createUpdateDefWithId(entity)
