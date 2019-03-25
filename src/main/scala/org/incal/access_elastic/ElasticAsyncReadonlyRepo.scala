@@ -14,6 +14,7 @@ import java.util.Date
 
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.Source
+import com.sksamuel.elastic4s.mappings.TypedFieldDefinition
 import org.slf4j.LoggerFactory
 
 /**
@@ -214,7 +215,6 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
     }
 
   protected def toDBFieldName(fieldName: String): String = fieldName
-//    ElasticIdRenameUtil.rename(fieldName, true)
 
   override def count(criteria: Seq[Criterion[Any]]): Future[Int] = {
     val countDef =
@@ -230,8 +230,13 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
 
   protected def createIndex(): Future[_] =
     client execute {
-      create index indexName replicas 0 indexSetting("max_result_window", unboundLimit) // indexSetting("_all", false)
+      create index indexName replicas 0 mappings (
+        indexName as fieldDefs
+      ) indexSetting("max_result_window", unboundLimit) // indexSetting("_all", false)
     }
+
+  // override if needed to customize field definitions
+  protected def fieldDefs: Iterable[TypedFieldDefinition] = Nil
 
   protected def existsIndex(): Future[Boolean] =
     client execute {
