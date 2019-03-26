@@ -2,7 +2,7 @@ organization := "org.in-cal"
 
 name := "incal-access-elastic"
 
-version := "0.1.5.1"
+version := "0.1.6"
 
 description := "Provides a convenient access layer for Elastic Search based on Elastic4S library."
 
