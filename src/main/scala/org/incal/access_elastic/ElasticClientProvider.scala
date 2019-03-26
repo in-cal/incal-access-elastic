@@ -2,19 +2,19 @@ package org.incal.access_elastic
 
 import com.sksamuel.elastic4s.{ElasticClient, ElasticsearchClientUri}
 import com.typesafe.config.Config
-import javax.inject.{Inject, Provider}
+import javax.inject.Provider
 import org.elasticsearch.common.settings.Settings
 import scala.collection.JavaConversions._
 
 /**
-  * IOC provider of an Elastic client using the injected application conf.
+  * IOC provider of an Elastic client using the application config, which must be provided (overridden).
   *
   * @since 2018
   * @author Peter Banda
   */
-class ElasticClientProvider extends Provider[ElasticClient] {
+trait ElasticClientProvider extends Provider[ElasticClient] {
 
-  @Inject private var config: Config = _
+  protected def config: Config
 
   protected def shutdownHook(client: ElasticClient): Unit =
     scala.sys.addShutdownHook(client.close())
@@ -22,8 +22,13 @@ class ElasticClientProvider extends Provider[ElasticClient] {
   override def get(): ElasticClient = {
     val elasticConfig = config.getConfig("elastic")
 
-    val host = elasticConfig.getString("host")
-    val port = elasticConfig.getInt("port")
+    val uri = if (elasticConfig.hasPath("uri")) {
+      elasticConfig.getString("uri")
+    } else {
+      val host = elasticConfig.getString("host")
+      val port = elasticConfig.getInt("port")
+      s"$host:$port"
+    }
 
     val settings = Settings.settingsBuilder
 
@@ -33,7 +38,7 @@ class ElasticClientProvider extends Provider[ElasticClient] {
 
     val client = ElasticClient.transport(
       settings.build,
-      ElasticsearchClientUri(s"elasticsearch://$host:$port")
+      ElasticsearchClientUri(s"elasticsearch://$uri")
     )
 
     // add a shutdown hook to the client
