@@ -9,7 +9,7 @@ import javax.inject.Inject
   * @since 2018
   * @author Peter Banda
   */
-class InjectedConfigElasticClientProvider extends ElasticClientProvider {
+class InjectedConfigElasticClientProvider extends ElasticcommClientProvider {
 
   @Inject protected var config: Config = _
 }
