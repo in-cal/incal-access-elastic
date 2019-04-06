@@ -176,6 +176,9 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
       case c: RegexEqualsCriterion =>
         RegexQueryDefinition(fieldName, c.value)
 
+      case c: RegexNotEqualsCriterion =>
+        new BoolQueryDefinition().not(RegexQueryDefinition(fieldName, c.value))
+
       case c: NotEqualsCriterion[T] =>
         new BoolQueryDefinition().not(TermQueryDefinition(fieldName, toDBValue(c.value)))
 
