@@ -1,10 +1,10 @@
-package org.incal.access_elastic
+package org.incal.access.elastic
 
-import com.sksamuel.elastic4s.{ElasticClient, ElasticDsl, UpdateDefinition}
+import com.sksamuel.elastic4s.{ElasticDsl, UpdateDefinition}
 import org.incal.core.Identity
 import org.incal.core.dataaccess.AsyncCrudRepo
-import scala.concurrent.ExecutionContext.Implicits.global
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 /**

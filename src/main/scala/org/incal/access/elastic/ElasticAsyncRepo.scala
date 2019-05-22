@@ -1,8 +1,8 @@
-package org.incal.access_elastic
+package org.incal.access.elastic
 
 import com.sksamuel.elastic4s._
-import org.incal.core.dataaccess._
 import org.incal.core.Identity
+import org.incal.core.dataaccess._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future

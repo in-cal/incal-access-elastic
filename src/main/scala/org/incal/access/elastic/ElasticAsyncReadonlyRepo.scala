@@ -1,4 +1,4 @@
-package org.incal.access_elastic
+package org.incal.access.elastic
 
 import org.elasticsearch.search.sort.SortOrder
 import org.elasticsearch.{ElasticsearchException, ElasticsearchTimeoutException}
@@ -77,7 +77,7 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
           case Nil => serializeSearchResult(searchResult)
           case _ => serializeProjectionSearchHits(projectionSeq, searchResult.hits)
         }
-        println(s"Serialization for the projection '${projection.mkString(", ")}' finished in ${new Date().getTime - serializationStart.getTime} ms.")
+        logger.debug(s"Serialization for the projection '${projection.mkString(", ")}' finished in ${new Date().getTime - serializationStart.getTime} ms.")
         result
       }
     }.recover(handleExceptions)
@@ -93,11 +93,14 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
     skip: Option[Int]
   ): Future[Source[E, _]] = {
     val scrollLimit = limit.getOrElse(setting.scrollBatchSize)
-    val searchDefinition = createSearchDefinition(criteria, sort, projection, Some(scrollLimit), skip)
 
-    val publisher = client publisher {
-      searchDefinition scroll scrollKeepAlive
-    }
+    val searchDefinition = createSearchDefinition(criteria, sort, projection, Some(scrollLimit), skip)
+    val extraScrollDef = (searchDefinition scroll scrollKeepAlive).asInstanceOf[CustomSearchDefinition]
+
+    if (setting.useDocScrollSort && sort.isEmpty)
+      extraScrollDef.setExtraParams(_.array("sort", "_doc"))
+
+    val publisher = client publisher { extraScrollDef }
     val source = Source.fromPublisher(publisher).map { richSearchHit =>
       val projectionSeq = projection.map(toDBFieldName).toSeq
 
@@ -123,7 +126,7 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
         // criteria
         (
           criteria.nonEmpty,
-          (_: SearchDefinition) bool must (criteria.map(toQuery)) fetchSource(projection.isEmpty)
+          (_: SearchDefinition) bool must (criteria.map(toQuery))
         ),
 
         // projection
@@ -144,12 +147,20 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
           if (limit.isDefined)
             (_: SearchDefinition) start skip.getOrElse(0) limit limit.get
           else
-          // if undefined we still need to pass "unbound" limit, since by default ES returns only 10 items
+            // if undefined we still need to pass "unbound" limit, since by default ES returns only 10 items
             (_: SearchDefinition) limit unboundLimit
+        ),
+
+        // fetch source (or not)
+        (
+          true,
+          (_: SearchDefinition) fetchSource(projection.isEmpty)
         )
       )
 
-    searchDefs.foldLeft(search in indexAndType) {
+    // TODO: once we don't need CustomSearchDefinition switch to SearchDefinition
+//    searchDefs.foldLeft(search in indexAndType) {
+    searchDefs.foldLeft(new CustomSearchDefinition(indexAndType): SearchDefinition) {
       case (sd, (cond, createNewDef)) =>
         if (cond) createNewDef(sd) else sd
     }

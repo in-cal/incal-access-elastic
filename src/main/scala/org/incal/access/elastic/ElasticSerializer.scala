@@ -1,4 +1,4 @@
-package org.incal.access_elastic
+package org.incal.access.elastic
 
 import com.sksamuel.elastic4s.{RichGetResponse, RichSearchHit, RichSearchResponse}
 

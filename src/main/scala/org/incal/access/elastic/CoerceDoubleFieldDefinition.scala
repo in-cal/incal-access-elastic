@@ -1,7 +1,7 @@
-package org.incal.access_elastic
+package org.incal.access.elastic
 
 import com.sksamuel.elastic4s.mappings.FieldType.DoubleType
-import com.sksamuel.elastic4s.mappings.{NumberFieldDefinition}
+import com.sksamuel.elastic4s.mappings.NumberFieldDefinition
 import org.elasticsearch.common.xcontent.XContentBuilder
 
 /**

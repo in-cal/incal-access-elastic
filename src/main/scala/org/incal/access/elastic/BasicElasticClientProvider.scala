@@ -1,4 +1,4 @@
-package org.incal.access_elastic
+package org.incal.access.elastic
 
 import com.typesafe.config.Config
 import javax.inject.Inject
