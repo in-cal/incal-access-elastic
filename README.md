@@ -7,7 +7,7 @@ This is a convenient repo-like access layer for Elastic Search based on Elastic4
 All you need is **Scala 2.11**. To pull the library you have to add the following dependency to *build.sbt*
 
 ```
-"org.in-cal" %% "incal-access-elastic % "0.1.10"
+"org.in-cal" %% "incal-access-elastic" % "0.1.10"
 ```
 
 or to *pom.xml* (if you use maven)
