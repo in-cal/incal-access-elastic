@@ -1,7 +1,6 @@
 package org.incal.access.elastic.caseclass
 
-import com.sksamuel.elastic4s.source.Indexable
-import com.sksamuel.elastic4s.{RichGetResponse, RichSearchHit, RichSearchResponse}
+import com.sksamuel.elastic4s.Indexable
 import org.incal.access.elastic.ElasticSerializer
 import org.incal.core.util.ReflectionUtil.{getCaseClassMemberMethods, getFieldNamesAndValues}
 
@@ -9,6 +8,8 @@ import scala.collection.JavaConversions._
 import scala.reflect.ClassTag
 import java.util.{Date, UUID}
 
+import com.sksamuel.elastic4s.http.get.GetResponse
+import com.sksamuel.elastic4s.http.search.{SearchHit, SearchResponse}
 import org.apache.commons.lang3.StringEscapeUtils
 
 trait ElasticCaseClassSerializer[E] extends ElasticSerializer[E] with HasDynamicConstructor[E] {
@@ -47,10 +48,9 @@ trait ElasticCaseClassSerializer[E] extends ElasticSerializer[E] with HasDynamic
         Some(x)
     }
 
-  override protected def serializeGetResult(response: RichGetResponse): Option[E] = {
-    val originalResponse = response.original
-    if (originalResponse.isExists) {
-      val sourceMap = originalResponse.getSourceAsMap.toMap
+  override protected def serializeGetResult(response: GetResponse): Option[E] = {
+    if (response.exists) {
+      val sourceMap = response.sourceAsMap
       val constructor = constructorOrException(sourceMap)
       constructor(sourceMap)
     } else
@@ -58,9 +58,9 @@ trait ElasticCaseClassSerializer[E] extends ElasticSerializer[E] with HasDynamic
   }
 
   override protected def serializeSearchResult(
-    response: RichSearchResponse
+    response: SearchResponse
   ): Traversable[E] =
-    response.hits.toTraversable match {
+    response.hits.hits.toTraversable match {
       case Nil => Nil
 
       case hits =>
@@ -71,7 +71,7 @@ trait ElasticCaseClassSerializer[E] extends ElasticSerializer[E] with HasDynamic
     }
 
   override protected def serializeSearchHit(
-    result: RichSearchHit
+    result: SearchHit
   ): E = {
     val sourceMap = result.sourceAsMap
     val constructor = constructorOrException(sourceMap)
@@ -95,13 +95,12 @@ trait ElasticCaseClassSerializer[E] extends ElasticSerializer[E] with HasDynamic
 
   override protected def serializeProjectionSearchHits(
     projection: Seq[String],
-    results: Array[RichSearchHit]
+    results: Array[SearchHit]
   ): Traversable[E] =
     if (!projection.contains(concreteClassFieldName)) {
       val constructor = constructorOrException(projection)
       results.map { result =>
-        val fieldValues = result.fieldsSeq.map(field => (field.name, field.getValue[Any]))
-        constructor(fieldValues.toMap).get
+        constructor(result.fields).get
       }
     } else
       // TODO: optimize me... we should group the results by a concrete class field name

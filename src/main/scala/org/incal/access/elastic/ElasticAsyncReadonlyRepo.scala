@@ -3,7 +3,7 @@ package org.incal.access.elastic
 import org.elasticsearch.search.sort.SortOrder
 import org.elasticsearch.{ElasticsearchException, ElasticsearchTimeoutException}
 import com.sksamuel.elastic4s.streams.ReactiveElastic._
-import com.sksamuel.elastic4s._
+import com.sksamuel.elastic4s.http._
 import org.incal.core.dataaccess._
 
 import scala.concurrent.duration._
@@ -14,8 +14,17 @@ import java.util.Date
 
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.Source
-import com.sksamuel.elastic4s.mappings.TypedFieldDefinition
-import org.slf4j.LoggerFactory
+import com.sksamuel.elastic4s.IndexAndType
+import com.sksamuel.elastic4s.admin.IndexExistsDefinition
+import com.sksamuel.elastic4s.http.search.SearchHit
+import com.sksamuel.elastic4s.mappings.FieldDefinition
+import com.sksamuel.elastic4s.http.{ElasticDsl, HttpClient}
+import com.sksamuel.elastic4s.searches.SearchDefinition
+import com.sksamuel.elastic4s.searches.queries._
+import com.sksamuel.elastic4s.searches.queries.term.{TermQueryDefinition, TermsQueryDefinition}
+import com.sksamuel.elastic4s.searches.sort.{FieldSortDefinition, SortDefinition}
+import com.sksamuel.elastic4s.streams.DocSortScrollPublisher
+import org.reactivestreams.Publisher
 
 /**
   * Basic (abstract) ready-only repo for searching and counting of documents in Elastic Search.
@@ -43,13 +52,12 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
   protected val indexAndType = IndexAndType(indexName, typeName)
   protected val unboundLimit = Integer.MAX_VALUE
   protected val scrollKeepAlive = "3m"
-  protected val logger = LoggerFactory.getLogger(this.getClass)
 
-  protected val client: ElasticClient
+  protected val client: HttpClient
 
   def get(id: ID): Future[Option[E]] =
     client execute {
-      ElasticDsl.get id id from indexAndType
+      ElasticDsl.get(id) from indexAndType
     } map (serializeGetResult)
 
   override def find(
@@ -69,13 +77,14 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
 
         val serializationStart = new Date()
 
-        if (searchResult.shardFailures.nonEmpty) {
-          throw new InCalDataAccessException(searchResult.shardFailures(0).reason())
+        if (searchResult.shards.failed > 0) {
+          // TODO: dig a reason for the failure
+          throw new InCalDataAccessException(s"Search failed at ${searchResult.shards.failed} shards.")
         }
 
         val result: Traversable[E] = projection match {
           case Nil => serializeSearchResult(searchResult)
-          case _ => serializeProjectionSearchHits(projectionSeq, searchResult.hits)
+          case _ => serializeProjectionSearchHits(projectionSeq, searchResult.hits.hits)
         }
         logger.debug(s"Serialization for the projection '${projection.mkString(", ")}' finished in ${new Date().getTime - serializationStart.getTime} ms.")
         result
@@ -95,29 +104,31 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
     val scrollLimit = limit.getOrElse(setting.scrollBatchSize)
 
     val searchDefinition = createSearchDefinition(criteria, sort, projection, Some(scrollLimit), skip)
-    val extraScrollDef = (searchDefinition scroll scrollKeepAlive).asInstanceOf[CustomSearchDefinition]
+    val extraScrollDef = (searchDefinition scroll scrollKeepAlive)
 
-    if (setting.useDocScrollSort && sort.isEmpty)
-      extraScrollDef.setExtraParams(_.array("sort", "_doc"))
+    val publisher: Publisher[SearchHit] =
+      if (setting.useDocScrollSort && sort.isEmpty)
+        new DocSortScrollPublisher(client, extraScrollDef, Long.MaxValue)
+    else
+        client publisher { extraScrollDef }
 
-    val publisher = client publisher { extraScrollDef }
-    val source = Source.fromPublisher(publisher).map { richSearchHit =>
+    val source = Source.fromPublisher(publisher).map { searchHit =>
       val projectionSeq = projection.map(toDBFieldName).toSeq
 
       projection match {
-        case Nil => serializeSearchHit(richSearchHit)
-        case _ => serializeProjectionSearchHit(projectionSeq, richSearchHit)
+        case Nil => serializeSearchHit(searchHit)
+        case _ => serializeProjectionSearchHit(projectionSeq, searchHit)
       }
     }
     Future(source)
   }
 
   private def createSearchDefinition(
-    criteria: Seq[Criterion[Any]],
-    sort: Seq[Sort],
-    projection: Traversable[String],
-    limit: Option[Int],
-    skip: Option[Int]
+    criteria: Seq[Criterion[Any]] = Nil,
+    sort: Seq[Sort] = Nil,
+    projection: Traversable[String] = Nil,
+    limit: Option[Int] = None,
+    skip: Option[Int] = None
   ): SearchDefinition = {
     val projectionSeq = projection.map(toDBFieldName).toSeq
 
@@ -132,13 +143,13 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
         // projection
         (
           projection.nonEmpty,
-          (_: SearchDefinition) fields (projectionSeq: _*)
+          (_: SearchDefinition) storedFields projectionSeq
         ),
 
         // sort
         (
           sort.nonEmpty,
-          (_: SearchDefinition) sort (toSort(sort): _*)
+          (_: SearchDefinition) sortBy toSort(sort)
         ),
 
         // start and skip
@@ -158,9 +169,7 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
         )
       )
 
-    // TODO: once we don't need CustomSearchDefinition switch to SearchDefinition
-//    searchDefs.foldLeft(search in indexAndType) {
-    searchDefs.foldLeft(new CustomSearchDefinition(indexAndType): SearchDefinition) {
+    searchDefs.foldLeft(search(indexAndType)) {
       case (sd, (cond, createNewDef)) =>
         if (cond) createNewDef(sd) else sd
     }
@@ -203,16 +212,16 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
         new BoolQueryDefinition().not(TermsQueryDefinition(fieldName, c.value.map(_.toString)))
 
       case c: GreaterCriterion[T] =>
-        RangeQueryDefinition(fieldName) from toDBValue(c.value) includeLower false
+        RangeQueryDefinition(fieldName) gt toDBValue(c.value).toString
 
       case c: GreaterEqualCriterion[T] =>
-        RangeQueryDefinition(fieldName) from toDBValue(c.value) includeLower true
+        RangeQueryDefinition(fieldName) gte toDBValue(c.value).toString
 
       case c: LessCriterion[T] =>
-        RangeQueryDefinition(fieldName) to toDBValue(c.value) includeUpper false
+        RangeQueryDefinition(fieldName) lt toDBValue(c.value).toString
 
       case c: LessEqualCriterion[T] =>
-        RangeQueryDefinition(fieldName) to toDBValue(c.value) includeUpper true
+        RangeQueryDefinition(fieldName) lte toDBValue(c.value).toString
     }
 
     if (fieldName.contains(".")) {
@@ -231,31 +240,39 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
   protected def toDBFieldName(fieldName: String): String = fieldName
 
   override def count(criteria: Seq[Criterion[Any]]): Future[Int] = {
-    val countDef =
-      ElasticDsl.count from indexAndType query new BoolQueryDefinition().must(criteria.map(toQuery))
+    val countDef = createSearchDefinition(criteria) size 0
 
     client.execute(countDef)
-      .map(_.getCount.toInt)
+      .map(_.totalHits.toInt)
       .recover(handleExceptions)
   }
+
+//  override def count(criteria: Seq[Criterion[Any]]): Future[Int] = {
+//    val countDef =
+//      ElasticDsl.count from indexAndType query new BoolQueryDefinition().must(criteria.map(toQuery))
+//
+//    client.execute(countDef)
+//      .map(_.getCount.toInt)
+//      .recover(handleExceptions)
+//  }
 
   override def exists(id: ID): Future[Boolean] =
     count(Seq(EqualsCriterion(identityName, id))).map(_ > 0)
 
   protected def createIndex(): Future[_] =
     client execute {
-      create index indexName replicas 0 mappings (
-        indexName as fieldDefs
+      ElasticDsl.createIndex(indexName) replicas 0 mappings (
+        mapping(indexName) as fieldDefs
       ) indexSetting("max_result_window", unboundLimit) // indexSetting("_all", false)
     }
 
   // override if needed to customize field definitions
-  protected def fieldDefs: Iterable[TypedFieldDefinition] = Nil
+  protected def fieldDefs: Iterable[FieldDefinition] = Nil
 
   protected def existsIndex(): Future[Boolean] =
     client execute {
-      admin IndexExistsDefinition (Seq(indexName))
-    } map (_.isExists)
+      IndexExistsDefinition(indexName)
+    } map(_.isExists)
 
   protected def createIndexIfNeeded(): Unit =
     result(
@@ -266,7 +283,7 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
         } yield
           ()
       },
-      20 seconds
+      30 seconds
     )
 
   protected def handleExceptions[A]: PartialFunction[Throwable, A] = {

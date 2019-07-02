@@ -1,6 +1,7 @@
 package org.incal.access.elastic
 
-import com.sksamuel.elastic4s.{RichGetResponse, RichSearchHit, RichSearchResponse}
+import com.sksamuel.elastic4s.http.get.GetResponse
+import com.sksamuel.elastic4s.http.search.{SearchHit, SearchResponse}
 
 /**
   * Trait describing a serializer of ES "search" and "get" responses.
@@ -12,11 +13,11 @@ import com.sksamuel.elastic4s.{RichGetResponse, RichSearchHit, RichSearchRespons
 trait ElasticSerializer[E] {
 
   protected def serializeGetResult(
-    response: RichGetResponse
+    response: GetResponse
   ): Option[E]
 
   protected def serializeSearchResult(
-    response: RichSearchResponse
+    response: SearchResponse
   ): Traversable[E]
 
   protected def serializeProjectionSearchResult(
@@ -27,20 +28,20 @@ trait ElasticSerializer[E] {
   // by default just iterate through and serialize each result independently
   protected def serializeProjectionSearchHits(
     projection: Seq[String],
-    results: Array[RichSearchHit]
+    results: Array[SearchHit]
   ): Traversable[E] =
     results.map { serializeProjectionSearchHit(projection, _) }
 
   protected def serializeProjectionSearchHit(
     projection: Seq[String],
-    result: RichSearchHit
+    result: SearchHit
   ): E = {
-    val fieldValues = result.fieldsSeq.map(field => (field.name, field.getValue[Any]))
+    val fieldValues = result.fields
     serializeProjectionSearchResult(projection, fieldValues)
   }
 
   protected def serializeSearchHit(
-    result: RichSearchHit
+    result: SearchHit
   ): E
 //
 //  {

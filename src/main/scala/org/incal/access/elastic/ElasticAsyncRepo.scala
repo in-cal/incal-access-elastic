@@ -1,6 +1,7 @@
 package org.incal.access.elastic
 
-import com.sksamuel.elastic4s._
+import com.sksamuel.elastic4s.indexes.IndexDefinition
+import org.elasticsearch.action.support.WriteRequest
 import org.incal.core.Identity
 import org.incal.core.dataaccess._
 
@@ -29,7 +30,7 @@ abstract class ElasticAsyncRepo[E, ID](
   ) extends ElasticAsyncReadonlyRepo[E, ID](indexName, typeName, identity.name, setting) with AsyncRepo[E, ID] {
 
   protected def flushIndex: Future[Unit] = {
-    client execute {flush index indexName} map (_ => ())
+    client execute flushIndex(indexName) map (_ => ())
   }.recover(
     handleExceptions
   )
@@ -37,10 +38,13 @@ abstract class ElasticAsyncRepo[E, ID](
   override def save(entity: E): Future[ID] = {
     val (saveDef, id) = createSaveDefWithId(entity)
 
-    client execute (saveDef refresh setting.saveRefresh) map (_ => id)
+    client execute (saveDef refresh asNative(setting.saveRefresh)) map (_ => id)
   }.recover(
     handleExceptions
   )
+
+  protected def asNative(refreshPolicy: RefreshPolicy.Value) =
+    WriteRequest.RefreshPolicy.parse(refreshPolicy.toString)
 
   override def save(entities: Traversable[E]): Future[Traversable[ID]] = {
     val saveDefAndIds = entities map createSaveDefWithId
@@ -49,7 +53,7 @@ abstract class ElasticAsyncRepo[E, ID](
       client execute {
         bulk {
           saveDefAndIds.toSeq map (_._1)
-        } refresh setting.saveBulkRefresh
+        } refresh asNative(setting.saveBulkRefresh)
       } map (_ =>
         saveDefAndIds map (_._2)
       )

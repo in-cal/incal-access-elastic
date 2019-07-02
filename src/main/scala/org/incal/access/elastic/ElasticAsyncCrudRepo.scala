@@ -1,6 +1,7 @@
 package org.incal.access.elastic
 
-import com.sksamuel.elastic4s.{ElasticDsl, UpdateDefinition}
+import com.sksamuel.elastic4s.update.UpdateDefinition
+import com.sksamuel.elastic4s.http.ElasticDsl
 import org.incal.core.Identity
 import org.incal.core.dataaccess.AsyncCrudRepo
 
@@ -31,7 +32,7 @@ abstract class ElasticAsyncCrudRepo[E, ID](
   override def update(entity: E): Future[ID] = {
     val (updateDef, id) = createUpdateDefWithId(entity)
 
-    client execute (updateDef refresh setting.updateRefresh) map (_ => id)
+    client execute (updateDef refresh asNative(setting.updateRefresh)) map (_ => id)
 
   }.recover(
     handleExceptions
@@ -44,7 +45,7 @@ abstract class ElasticAsyncCrudRepo[E, ID](
       client execute {
         bulk {
           updateDefAndIds.toSeq map (_._1)
-        } refresh setting.updateBulkRefresh
+        } refresh asNative(setting.updateBulkRefresh)
       } map (_ =>
         updateDefAndIds map (_._2)
         )
@@ -66,7 +67,7 @@ abstract class ElasticAsyncCrudRepo[E, ID](
 
   override def delete(id: ID): Future[Unit] = {
     client execute {
-      ElasticDsl.delete id id from indexAndType
+      ElasticDsl.delete(id) from indexAndType
     } map (_ => ())
 
   }.recover(
@@ -78,7 +79,7 @@ abstract class ElasticAsyncCrudRepo[E, ID](
       indexExists <- existsIndex()
       _ <- if (indexExists)
         client execute {
-          ElasticDsl.delete index indexName
+          deleteIndex(indexName)
         }
       else
         Future(())

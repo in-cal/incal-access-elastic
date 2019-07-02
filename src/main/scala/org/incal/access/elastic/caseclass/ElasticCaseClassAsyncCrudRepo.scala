@@ -1,6 +1,6 @@
 package org.incal.access.elastic.caseclass
 
-import com.sksamuel.elastic4s.ElasticDsl
+import com.sksamuel.elastic4s.http.ElasticDsl
 import org.incal.access.elastic.{ElasticAsyncCrudRepo, ElasticSetting}
 import org.incal.core.Identity
 
@@ -15,8 +15,8 @@ abstract class ElasticCaseClassAsyncCrudRepo[E, ID](
 ) extends ElasticAsyncCrudRepo[E, ID](indexName, typeName, setting) with ElasticCaseClassSerializer[E] {
 
   override protected def createSaveDef(entity: E, id: ID) =
-    index into indexAndType source entity id id
+    indexInto(indexAndType) source entity id id
 
   override def createUpdateDef(entity: E, id: ID) =
-    ElasticDsl.update id id in indexAndType source entity
+    ElasticDsl.update(id) in indexAndType source entity
 }
