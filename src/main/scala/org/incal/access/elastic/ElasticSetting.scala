@@ -6,7 +6,10 @@ case class ElasticSetting(
   updateRefresh: RefreshPolicy.Value = RefreshPolicy.None,
   updateBulkRefresh: RefreshPolicy.Value = RefreshPolicy.None,
   scrollBatchSize: Int = 1000,
-  useDocScrollSort: Boolean = true
+  useDocScrollSort: Boolean = true,
+  indexFieldsLimit: Int = 10000,
+  shards: Int = 5,
+  replicas: Int = 0
 )
 
 object RefreshPolicy extends Enumeration {

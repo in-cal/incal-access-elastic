@@ -10,9 +10,12 @@ import java.util.{Date, UUID}
 
 import com.sksamuel.elastic4s.http.get.GetResponse
 import com.sksamuel.elastic4s.http.search.{SearchHit, SearchResponse}
+import com.sksamuel.exts.Logging
 import org.apache.commons.lang3.StringEscapeUtils
 
 trait ElasticCaseClassSerializer[E] extends ElasticSerializer[E] with HasDynamicConstructor[E] {
+
+  logging: Logging =>
 
   protected implicit val classTag: ClassTag[E]
 

@@ -2,6 +2,8 @@ package org.incal.access.elastic
 
 import com.sksamuel.elastic4s.http.get.GetResponse
 import com.sksamuel.elastic4s.http.search.{SearchHit, SearchResponse}
+import com.sksamuel.exts.Logging
+import org.incal.core.dataaccess.InCalDataAccessException
 
 /**
   * Trait describing a serializer of ES "search" and "get" responses.
@@ -12,6 +14,8 @@ import com.sksamuel.elastic4s.http.search.{SearchHit, SearchResponse}
   */
 trait ElasticSerializer[E] {
 
+  logging: Logging =>
+
   protected def serializeGetResult(
     response: GetResponse
   ): Option[E]
@@ -20,32 +24,36 @@ trait ElasticSerializer[E] {
     response: SearchResponse
   ): Traversable[E]
 
-  protected def serializeProjectionSearchResult(
-    projection: Seq[String],
-    result: Traversable[(String, Any)]
-  ): E
-
   // by default just iterate through and serialize each result independently
   protected def serializeProjectionSearchHits(
     projection: Seq[String],
     results: Array[SearchHit]
   ): Traversable[E] =
-    results.map { serializeProjectionSearchHit(projection, _) }
+    results.flatMap { searchHit =>
+      if (searchHit.exists) {
+        Some(serializeProjectionSearchHit(projection, searchHit))
+      } else {
+        logger.warn(s"Received an empty search hit '${searchHit.index}'. Total search hits: ${results.size}.")
+        None
+      }
+    }
 
   protected def serializeProjectionSearchHit(
     projection: Seq[String],
     result: SearchHit
-  ): E = {
-    val fieldValues = result.fields
-    serializeProjectionSearchResult(projection, fieldValues)
-  }
+  ): E =
+    if (result.exists) {
+      val fieldValues = if (result.fields != null) result.fields else Nil
+      serializeProjectionSearchResult(projection, fieldValues)
+    } else
+      throw new InCalDataAccessException(s"Got an empty result '$result' but at this point should contain some data.")
+
+  protected def serializeProjectionSearchResult(
+    projection: Seq[String],
+    result: Traversable[(String, Any)]
+  ): E
 
   protected def serializeSearchHit(
     result: SearchHit
   ): E
-//
-//  {
-//    val fieldValues = result.fieldsSeq.map(field => (field.name, field.getValue[Any]))
-//    serializeProjectionSearchResult(fieldValues.map(_._1), fieldValues)
-//  }
 }

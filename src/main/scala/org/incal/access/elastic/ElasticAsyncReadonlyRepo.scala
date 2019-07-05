@@ -14,7 +14,7 @@ import java.util.Date
 
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.Source
-import com.sksamuel.elastic4s.IndexAndType
+import com.sksamuel.elastic4s.{IndexAndType, Indexes}
 import com.sksamuel.elastic4s.admin.IndexExistsDefinition
 import com.sksamuel.elastic4s.http.search.SearchHit
 import com.sksamuel.elastic4s.mappings.FieldDefinition
@@ -55,9 +55,11 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
 
   protected val client: HttpClient
 
+  protected def stringId(id: ID) = id.toString
+
   def get(id: ID): Future[Option[E]] =
     client execute {
-      ElasticDsl.get(id) from indexAndType
+      ElasticDsl.get(stringId(id)) from indexAndType
     } map (serializeGetResult)
 
   override def find(
@@ -115,11 +117,16 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
     val source = Source.fromPublisher(publisher).map { searchHit =>
       val projectionSeq = projection.map(toDBFieldName).toSeq
 
-      projection match {
-        case Nil => serializeSearchHit(searchHit)
-        case _ => serializeProjectionSearchHit(projectionSeq, searchHit)
-      }
-    }
+      if (searchHit.exists) {
+        val result = projection match {
+          case Nil => serializeSearchHit(searchHit)
+          case _ => serializeProjectionSearchHit(projectionSeq, searchHit)
+        }
+        Some(result)
+      } else
+        None
+    }.collect { case Some(x) => x }
+
     Future(source)
   }
 
@@ -194,10 +201,10 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
         new BoolQueryDefinition().not(ExistsQueryDefinition(fieldName))
 
       case c: RegexEqualsCriterion =>
-        RegexQueryDefinition(fieldName, c.value)
+        RegexQueryDefinition(fieldName, toDBValue(c.value).toString)
 
       case c: RegexNotEqualsCriterion =>
-        new BoolQueryDefinition().not(RegexQueryDefinition(fieldName, c.value))
+        new BoolQueryDefinition().not(RegexQueryDefinition(fieldName, toDBValue(c.value).toString))
 
       case c: NotEqualsCriterion[T] =>
         new BoolQueryDefinition().not(TermQueryDefinition(fieldName, toDBValue(c.value)))
@@ -209,7 +216,7 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
         TermsQueryDefinition(fieldName, c.value.map(value => toDBValue(value).toString))
 
       case c: NotInCriterion[V] =>
-        new BoolQueryDefinition().not(TermsQueryDefinition(fieldName, c.value.map(_.toString)))
+        new BoolQueryDefinition().not(TermsQueryDefinition(fieldName, c.value.map(value => toDBValue(value).toString)))
 
       case c: GreaterCriterion[T] =>
         RangeQueryDefinition(fieldName) gt toDBValue(c.value).toString
@@ -247,39 +254,40 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
       .recover(handleExceptions)
   }
 
-//  override def count(criteria: Seq[Criterion[Any]]): Future[Int] = {
-//    val countDef =
-//      ElasticDsl.count from indexAndType query new BoolQueryDefinition().must(criteria.map(toQuery))
-//
-//    client.execute(countDef)
-//      .map(_.getCount.toInt)
-//      .recover(handleExceptions)
-//  }
-
   override def exists(id: ID): Future[Boolean] =
     count(Seq(EqualsCriterion(identityName, id))).map(_ > 0)
 
-  protected def createIndex(): Future[_] =
+  protected def createIndex: Future[_] =
     client execute {
-      ElasticDsl.createIndex(indexName) replicas 0 mappings (
+      ElasticDsl.createIndex(indexName) shards setting.shards replicas setting.replicas mappings (
         mapping(indexName) as fieldDefs
-      ) indexSetting("max_result_window", unboundLimit) // indexSetting("_all", false)
+      ) indexSetting("max_result_window", unboundLimit) indexSetting("mapping.total_fields.limit", setting.indexFieldsLimit) // indexSetting("_all", false)
+    }
+
+  protected def reindex(newIndexName: String): Future[_] =
+    client execute {
+      ElasticDsl.reindex(Indexes(Seq(indexName))) into newIndexName refresh true waitForActiveShards 5
+    }
+
+  protected def deleteIndex: Future[_] =
+    client execute {
+      ElasticDsl.deleteIndex(indexName)
     }
 
   // override if needed to customize field definitions
   protected def fieldDefs: Iterable[FieldDefinition] = Nil
 
-  protected def existsIndex(): Future[Boolean] =
+  protected def existsIndex: Future[Boolean] =
     client execute {
       IndexExistsDefinition(indexName)
     } map(_.isExists)
 
-  protected def createIndexIfNeeded(): Unit =
+  protected def createIndexIfNeeded: Unit =
     result(
       {
         for {
-          exists <- existsIndex()
-          _ <- if (!exists) createIndex() else Future(())
+          exists <- existsIndex
+          _ <- if (!exists) createIndex else Future(())
         } yield
           ()
       },

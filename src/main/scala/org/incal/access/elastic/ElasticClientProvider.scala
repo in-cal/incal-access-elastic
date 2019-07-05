@@ -1,10 +1,15 @@
 package org.incal.access.elastic
 
 import com.sksamuel.elastic4s.http.HttpClient
+import com.sksamuel.elastic4s.http._
 import com.sksamuel.elastic4s.ElasticsearchClientUri
 import com.sksamuel.exts.StringOption
 import com.typesafe.config.Config
 import javax.inject.Provider
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder
+import org.apache.http.client.config.RequestConfig
+import org.elasticsearch.client.RestClientBuilder.{HttpClientConfigCallback, RequestConfigCallback}
+
 import org.incal.core.dataaccess.InCalDataAccessException
 
 import scala.collection.JavaConversions._
@@ -53,8 +58,16 @@ trait ElasticClientProvider extends Provider[HttpClient] {
       entry.getKey -> entry.getValue.unwrapped.toString
     }.filter(_._1 != "uri").toMap
 
+    val connectionRequestTimeout = finalOptions.get("connection_request.timeout").map(_.toString.toInt).getOrElse(60000)
+    val connectionTimeout = finalOptions.get("connection.timeout").map(_.toString.toInt).getOrElse(60000)
+
     val client = HttpClient(
-      ElasticsearchClientUri(s"elasticsearch://$host:$port", List((host, port)), finalOptions)
+      ElasticsearchClientUri(s"elasticsearch://$host:$port", List((host, port)), finalOptions),
+      new RequestConfigCallback {
+        override def customizeRequestConfig(requestConfigBuilder: RequestConfig.Builder) =
+          requestConfigBuilder.setConnectionRequestTimeout(connectionRequestTimeout).setConnectTimeout(connectionTimeout)
+      },
+      NoOpHttpClientConfigCallback
     )
 
     // add a shutdown hook to the client
