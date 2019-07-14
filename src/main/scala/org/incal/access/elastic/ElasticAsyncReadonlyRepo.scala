@@ -46,6 +46,7 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
   identityName : String,
   setting: ElasticSetting
 ) extends AsyncReadonlyRepo[E, ID]
+  with ElasticReadonlyRepoExtra
   with ElasticSerializer[E]
   with ElasticDsl {
 
@@ -260,19 +261,23 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
   protected def createIndex: Future[_] =
     client execute {
       ElasticDsl.createIndex(indexName) shards setting.shards replicas setting.replicas mappings (
-        mapping(indexName) as fieldDefs
-      ) indexSetting("max_result_window", unboundLimit) indexSetting("mapping.total_fields.limit", setting.indexFieldsLimit) // indexSetting("_all", false)
+        mapping(typeName) as fieldDefs
+      ) indexSetting("max_result_window", unboundLimit) indexSetting("mapping.total_fields.limit", setting.indexFieldsLimit) indexSetting("mapping.single_type", setting.indexSingleTypeMapping) // indexSetting("_all", false)
     }
 
-  protected def reindex(newIndexName: String): Future[_] =
+  // TODO: serialization of index names is buggy for the reindex function, therefore we pass there apostrophes
+  override def reindex(newIndexName: String): Future[_] =
     client execute {
-      ElasticDsl.reindex(Indexes(Seq(indexName))) into newIndexName refresh true waitForActiveShards 5
+      ElasticDsl.reindex(Indexes(Seq("\"" + indexName + "\""))) into ("\"" + newIndexName +"\"") refresh true waitForActiveShards setting.shards
     }
 
-  protected def deleteIndex: Future[_] =
-    client execute {
-      ElasticDsl.deleteIndex(indexName)
-    }
+  override def getMappings: Future[Map[String, Map[String, Any]]] =
+    for {
+      mappings <- client execute {
+        ElasticDsl.getMapping(indexName)
+      }
+    } yield
+      mappings.headOption.map(_.mappings).getOrElse(Map())
 
   // override if needed to customize field definitions
   protected def fieldDefs: Iterable[FieldDefinition] = Nil
@@ -305,4 +310,11 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
       logger.error(message, e)
       throw new InCalDataAccessException(message, e)
   }
+}
+
+trait ElasticReadonlyRepoExtra {
+
+  def getMappings: Future[Map[String, Map[String, Any]]]
+
+  def reindex(newIndexName: String): Future[_]
 }

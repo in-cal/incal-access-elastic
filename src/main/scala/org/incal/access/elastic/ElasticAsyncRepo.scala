@@ -29,12 +29,6 @@ abstract class ElasticAsyncRepo[E, ID](
     implicit identity: Identity[E, ID]
   ) extends ElasticAsyncReadonlyRepo[E, ID](indexName, typeName, identity.name, setting) with AsyncRepo[E, ID] {
 
-  protected def flushIndex: Future[Unit] = {
-    client execute flushIndex(indexName) map (_ => ())
-  }.recover(
-    handleExceptions
-  )
-
   override def save(entity: E): Future[ID] = {
     val (saveDef, id) = createSaveDefWithId(entity)
 
@@ -78,8 +72,9 @@ abstract class ElasticAsyncRepo[E, ID](
         (id, identity.set(entity, id))
     }
 
-  override def flushOps =
-    client.execute {
-      flushIndex(indexName)
-    }.map(_ => ())
+  override def flushOps = {
+    client execute flushIndex(indexName) map (_ => ())
+  }.recover(
+    handleExceptions
+  )
 }

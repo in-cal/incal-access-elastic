@@ -8,6 +8,7 @@ case class ElasticSetting(
   scrollBatchSize: Int = 1000,
   useDocScrollSort: Boolean = true,
   indexFieldsLimit: Int = 10000,
+  indexSingleTypeMapping: Boolean = true, // will be enforced in 6.x
   shards: Int = 5,
   replicas: Int = 0
 )

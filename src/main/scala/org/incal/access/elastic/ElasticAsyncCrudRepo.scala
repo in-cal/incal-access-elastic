@@ -27,7 +27,9 @@ abstract class ElasticAsyncCrudRepo[E, ID](
   typeName: String,
   setting: ElasticSetting = ElasticSetting())(
   implicit identity: Identity[E, ID]
-) extends ElasticAsyncRepo[E, ID](indexName, typeName, setting) with AsyncCrudRepo[E, ID] {
+) extends ElasticAsyncRepo[E, ID](indexName, typeName, setting)
+  with AsyncCrudRepo[E, ID]
+  with ElasticCrudRepoExtra {
 
   override def update(entity: E): Future[ID] = {
     val (updateDef, id) = createUpdateDefWithId(entity)
@@ -74,19 +76,23 @@ abstract class ElasticAsyncCrudRepo[E, ID](
     handleExceptions
   )
 
+  override def deleteIndex: Future[_] =
+    client execute {
+      ElasticDsl.deleteIndex(indexName)
+    }
+
   override def deleteAll: Future[Unit] = {
     for {
       indexExists <- existsIndex
-      _ <- if (indexExists)
-        client execute {
-          deleteIndex(indexName)
-        }
-      else
-        Future(())
+      _ <- if (indexExists) deleteIndex else Future(())
       _ <- createIndex
     } yield
       ()
   }.recover(
     handleExceptions
   )
+}
+
+trait ElasticCrudRepoExtra extends ElasticReadonlyRepoExtra {
+  def deleteIndex: Future[_]
 }
