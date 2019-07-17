@@ -13,6 +13,7 @@ import scala.concurrent.Await.result
 import java.util.Date
 
 import akka.actor.ActorSystem
+import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import com.sksamuel.elastic4s.{IndexAndType, Indexes}
 import com.sksamuel.elastic4s.admin.IndexExistsDefinition
@@ -102,7 +103,8 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
     sort: Seq[Sort],
     projection: Traversable[String],
     limit: Option[Int],
-    skip: Option[Int]
+    skip: Option[Int])(
+    implicit materializer: Materializer
   ): Future[Source[E, _]] = {
     val scrollLimit = limit.getOrElse(setting.scrollBatchSize)
 
