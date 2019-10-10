@@ -1,4 +1,4 @@
-# InCal Access ElasticSearch [![version](https://img.shields.io/badge/version-0.2.3-green.svg)](https://in-cal.org) [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+# InCal Access ElasticSearch [![version](https://img.shields.io/badge/version-0.2.3-green.svg)](https://in-cal.org) [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://www.apache.org/licenses/LICENSE-2.0) [![Build Status](https://travis-ci.com/in-cal/incal-access-elastic.svg?branch=master)](https://travis-ci.com/in-cal/incal-access-elastic)
 
 This is a convenient repo-like access layer for Elastic Search based on [Elastic4S](https://github.com/sksamuel/elastic4s) library.
 
