@@ -10,9 +10,9 @@ description := "Provides a convenient access layer for Elastic Search based on E
 
 isSnapshot := false
 
-scalaVersion := "2.11.12"
+scalaVersion := "2.12.10"
 
-val esVersion = "5.6.10"
+val esVersion = "7.3.1"
 
 libraryDependencies ++= Seq(
   "com.sksamuel.elastic4s" %% "elastic4s-core" % esVersion exclude("com.vividsolutions" ,"jts"), // jts is LGPL licensed (up to version 1.14)
