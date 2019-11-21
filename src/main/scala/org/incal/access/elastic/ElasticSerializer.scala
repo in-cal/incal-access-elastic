@@ -1,7 +1,7 @@
 package org.incal.access.elastic
 
-import com.sksamuel.elastic4s.http.get.GetResponse
-import com.sksamuel.elastic4s.http.search.{SearchHit, SearchResponse}
+import com.sksamuel.elastic4s.requests.get.GetResponse
+import com.sksamuel.elastic4s.requests.searches.{SearchHit, SearchResponse}
 import com.sksamuel.exts.Logging
 import org.incal.core.dataaccess.InCalDataAccessException
 

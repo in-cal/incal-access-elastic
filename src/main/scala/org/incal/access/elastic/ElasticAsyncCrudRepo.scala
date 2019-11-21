@@ -1,5 +1,6 @@
 package org.incal.access.elastic
 
+import com.sksamuel.elastic4s.ElasticDsl
 import com.sksamuel.elastic4s.update.UpdateDefinition
 import com.sksamuel.elastic4s.http.ElasticDsl
 import org.incal.core.Identity

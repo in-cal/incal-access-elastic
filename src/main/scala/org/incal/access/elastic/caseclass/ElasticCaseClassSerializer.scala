@@ -4,12 +4,12 @@ import com.sksamuel.elastic4s.Indexable
 import org.incal.access.elastic.ElasticSerializer
 import org.incal.core.util.ReflectionUtil.{getCaseClassMemberMethods, getFieldNamesAndValues}
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 import java.util.{Date, UUID}
 
-import com.sksamuel.elastic4s.http.get.GetResponse
-import com.sksamuel.elastic4s.http.search.{SearchHit, SearchResponse}
+import com.sksamuel.elastic4s.requests.get.GetResponse
+import com.sksamuel.elastic4s.requests.searches.{SearchHit, SearchResponse}
 import com.sksamuel.exts.Logging
 import org.apache.commons.lang3.StringEscapeUtils
 

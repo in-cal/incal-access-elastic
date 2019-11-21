@@ -16,7 +16,7 @@ val esVersion = "7.3.1"
 
 libraryDependencies ++= Seq(
   "com.sksamuel.elastic4s" %% "elastic4s-core" % esVersion exclude("com.vividsolutions" ,"jts"), // jts is LGPL licensed (up to version 1.14)
-  "com.sksamuel.elastic4s" %% "elastic4s-http" % esVersion,
+  "com.sksamuel.elastic4s" %% "elastic4s-client-esjava" % esVersion,
   "com.sksamuel.elastic4s" %% "elastic4s-http-streams" % esVersion,
   "javax.inject" % "javax.inject" % "1",
   "org.in-cal" %% "incal-core" % "0.2.2",

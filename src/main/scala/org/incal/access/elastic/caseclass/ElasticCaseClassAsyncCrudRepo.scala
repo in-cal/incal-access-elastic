@@ -1,6 +1,6 @@
 package org.incal.access.elastic.caseclass
 
-import com.sksamuel.elastic4s.http.ElasticDsl
+import com.sksamuel.elastic4s.ElasticDsl
 import org.incal.access.elastic.{ElasticAsyncCrudRepo, ElasticSetting}
 import org.incal.core.Identity
 

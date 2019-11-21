@@ -15,11 +15,12 @@ import java.util.Date
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
-import com.sksamuel.elastic4s.{IndexAndType, Indexes}
+import com.sksamuel.elastic4s.{ElasticDsl, HttpClient, IndexAndType, Indexes}
 import com.sksamuel.elastic4s.admin.IndexExistsDefinition
 import com.sksamuel.elastic4s.http.search.SearchHit
 import com.sksamuel.elastic4s.mappings.FieldDefinition
 import com.sksamuel.elastic4s.http.{ElasticDsl, HttpClient}
+import com.sksamuel.elastic4s.requests.searches.SearchHit
 import com.sksamuel.elastic4s.searches.SearchDefinition
 import com.sksamuel.elastic4s.searches.queries._
 import com.sksamuel.elastic4s.searches.queries.term.{TermQueryDefinition, TermsQueryDefinition}
