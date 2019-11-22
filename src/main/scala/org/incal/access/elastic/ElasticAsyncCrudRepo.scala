@@ -1,8 +1,7 @@
 package org.incal.access.elastic
 
 import com.sksamuel.elastic4s.ElasticDsl
-import com.sksamuel.elastic4s.update.UpdateDefinition
-import com.sksamuel.elastic4s.http.ElasticDsl
+import com.sksamuel.elastic4s.requests.update.UpdateRequest
 import org.incal.core.Identity
 import org.incal.core.dataaccess.AsyncCrudRepo
 
@@ -14,7 +13,6 @@ import scala.concurrent.Future
   *
   * @param indexName
   * @param typeName
-  * @param client
   * @param setting
   * @param identity
   * @tparam E
@@ -59,14 +57,14 @@ abstract class ElasticAsyncCrudRepo[E, ID](
     handleExceptions
   )
 
-  protected def createUpdateDefWithId(entity: E): (UpdateDefinition, ID) = {
+  protected def createUpdateDefWithId(entity: E): (UpdateRequest, ID) = {
     val id = identity.of(entity).getOrElse(
       throw new IllegalArgumentException(s"Elastic update method expects an entity with id but '$entity' provided.")
     )
     (createUpdateDef(entity, id), id)
   }
 
-  protected def createUpdateDef(entity: E, id: ID): UpdateDefinition
+  protected def createUpdateDef(entity: E, id: ID): UpdateRequest
 
   override def delete(id: ID): Future[Unit] = {
     client execute {
