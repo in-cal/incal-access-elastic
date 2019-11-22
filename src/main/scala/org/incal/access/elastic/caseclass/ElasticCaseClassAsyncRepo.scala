@@ -1,6 +1,6 @@
 package org.incal.access.elastic.caseclass
 
-import com.sksamuel.elastic4s.indexes.IndexDefinition
+import com.sksamuel.elastic4s.requests.indexes.IndexRequest
 import org.incal.access.elastic.ElasticAsyncRepo
 import org.incal.access.elastic.ElasticSetting
 import org.incal.core.Identity
@@ -15,6 +15,6 @@ abstract class ElasticCaseClassAsyncRepo[E, ID](
   implicit val typeTag: TypeTag[E], val classTag: ClassTag[E], identity: Identity[E, ID]
 ) extends ElasticAsyncRepo[E, ID](indexName, typeName, setting) with ElasticCaseClassSerializer[E] {
 
-  override protected def createSaveDef(entity: E, id: ID): IndexDefinition =
-    indexInto(indexAndType) source entity id id
+  override protected def createSaveDef(entity: E, id: ID): IndexRequest =
+    indexInto(index) source entity id toString
 }

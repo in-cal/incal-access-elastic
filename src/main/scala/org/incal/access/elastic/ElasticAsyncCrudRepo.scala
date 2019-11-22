@@ -70,7 +70,7 @@ abstract class ElasticAsyncCrudRepo[E, ID](
 
   override def delete(id: ID): Future[Unit] = {
     client execute {
-      ElasticDsl.delete(stringId(id)) from indexAndType
+      ElasticDsl.delete(stringId(id)) from index
     } map (_ => ())
 
   }.recover(

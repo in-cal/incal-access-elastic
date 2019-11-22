@@ -1,41 +1,33 @@
 package org.incal.access.elastic
 
-import org.elasticsearch.search.sort.SortOrder
-import org.elasticsearch.{ElasticsearchException, ElasticsearchTimeoutException}
-import com.sksamuel.elastic4s.streams.ReactiveElastic._
-import com.sksamuel.elastic4s.http._
-import org.incal.core.dataaccess._
-
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
-import scala.concurrent.Await.result
 import java.util.Date
 
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
-import com.sksamuel.elastic4s.{ElasticDsl, HttpClient, IndexAndType, Indexes}
-import com.sksamuel.elastic4s.admin.IndexExistsDefinition
-import com.sksamuel.elastic4s.http.search.SearchHit
-import com.sksamuel.elastic4s.mappings.FieldDefinition
-import com.sksamuel.elastic4s.http.{ElasticDsl, HttpClient}
-import com.sksamuel.elastic4s.requests.searches.SearchHit
-import com.sksamuel.elastic4s.searches.SearchDefinition
-import com.sksamuel.elastic4s.searches.queries._
-import com.sksamuel.elastic4s.searches.queries.term.{TermQueryDefinition, TermsQueryDefinition}
-import com.sksamuel.elastic4s.searches.sort.{FieldSortDefinition, SortDefinition}
+import com.sksamuel.elastic4s.requests.searches.{SearchHit, SearchRequest}
 import com.sksamuel.elastic4s.streams.DocSortScrollPublisher
+import com.sksamuel.elastic4s.streams.ReactiveElastic._
+import com.sksamuel.elastic4s.ElasticDsl._
+import com.sksamuel.elastic4s.requests.ExistsRequest
+import com.sksamuel.elastic4s.requests.mappings.{FieldDefinition, MappingDefinition}
+import com.sksamuel.elastic4s.requests.searches.queries.Query
+import com.sksamuel.elastic4s.requests.searches.sort.{FieldSort, SortOrder}
+import com.sksamuel.elastic4s.{ElasticClient, ElasticDsl, Index, Indexes}
+import org.incal.core.dataaccess._
 import org.reactivestreams.Publisher
+
+import scala.concurrent.Await.result
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.concurrent.duration._
 
 /**
   * Basic (abstract) ready-only repo for searching and counting of documents in Elastic Search.
   *
   * @param indexName
-  * @param typeName
-  * @param client
+  * @param identityName
   * @param setting
-  * @param identity
   * @tparam E
   * @tparam ID
   *
@@ -44,7 +36,6 @@ import org.reactivestreams.Publisher
   */
 abstract class ElasticAsyncReadonlyRepo[E, ID](
   indexName: String,
-  typeName: String,
   identityName : String,
   setting: ElasticSetting
 ) extends AsyncReadonlyRepo[E, ID]
@@ -52,18 +43,20 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
   with ElasticSerializer[E]
   with ElasticDsl {
 
-  protected val indexAndType = IndexAndType(indexName, typeName)
+  protected val index = Index(indexName)
   protected val unboundLimit = Integer.MAX_VALUE
   protected val scrollKeepAlive = "3m"
 
-  protected val client: HttpClient
+  protected val client: ElasticClient
 
   protected def stringId(id: ID) = id.toString
 
   def get(id: ID): Future[Option[E]] =
     client execute {
-      ElasticDsl.get(stringId(id)) from indexAndType
-    } map (serializeGetResult)
+      ElasticDsl get stringId(id) from index
+    } map { response =>
+      serializeGetResult(response.result)
+    }
 
   override def find(
     criteria: Seq[Criterion[Any]],
@@ -73,11 +66,10 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
     skip: Option[Int]
   ): Future[Traversable[E]] = {
     val searchDefinition = createSearchDefinition(criteria, sort, projection, limit, skip)
-
     {
-      client execute (
+      client execute {
         searchDefinition
-        ) map { searchResult =>
+      } map { searchResult =>
         val projectionSeq = projection.map(toDBFieldName).toSeq
 
         val serializationStart = new Date()
@@ -140,61 +132,59 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
     projection: Traversable[String] = Nil,
     limit: Option[Int] = None,
     skip: Option[Int] = None
-  ): SearchDefinition = {
+  ): SearchRequest = {
     val projectionSeq = projection.map(toDBFieldName).toSeq
 
-    val searchDefs: Seq[(Boolean, SearchDefinition => SearchDefinition)] =
+    val searchDefs: Seq[(Boolean, SearchRequest => SearchRequest)] =
       Seq(
         // criteria
         (
           criteria.nonEmpty,
-          (_: SearchDefinition) bool must (criteria.map(toQuery))
+          (_: SearchRequest) bool must (criteria.map(toQuery))
         ),
 
         // projection
         (
           projection.nonEmpty,
-          (_: SearchDefinition) storedFields projectionSeq
+          (_: SearchRequest) storedFields projectionSeq
         ),
 
         // sort
         (
           sort.nonEmpty,
-          (_: SearchDefinition) sortBy toSort(sort)
+          (_: SearchRequest) sortBy toSort(sort)
         ),
 
         // start and skip
         (
           true,
           if (limit.isDefined)
-            (_: SearchDefinition) start skip.getOrElse(0) limit limit.get
+            (_: SearchRequest) start skip.getOrElse(0) limit limit.get
           else
             // if undefined we still need to pass "unbound" limit, since by default ES returns only 10 items
-            (_: SearchDefinition) limit unboundLimit
+            (_: SearchRequest) limit unboundLimit
         ),
 
         // fetch source (or not)
         (
           true,
-          (_: SearchDefinition) fetchSource(projection.isEmpty)
+          (_: SearchRequest) fetchSource(projection.isEmpty)
         )
       )
 
-    searchDefs.foldLeft(search(indexAndType)) {
+    searchDefs.foldLeft(search(index)) {
       case (sd, (cond, createNewDef)) =>
         if (cond) createNewDef(sd) else sd
     }
   }
 
-  private def toSort(sorts: Seq[Sort]): Seq[SortDefinition] =
+  private def toSort(sorts: Seq[Sort]): Seq[com.sksamuel.elastic4s.requests.searches.sort.Sort] =
     sorts map {
-      _ match {
-        case AscSort(fieldName) => FieldSortDefinition(toDBFieldName(fieldName)) order SortOrder.ASC
-        case DescSort(fieldName) => FieldSortDefinition(toDBFieldName(fieldName)) order SortOrder.DESC
-      }
+      case AscSort(fieldName) => FieldSort(toDBFieldName(fieldName)) order SortOrder.ASC
+      case DescSort(fieldName) => FieldSort(toDBFieldName(fieldName)) order SortOrder.DESC
     }
 
-  protected def toQuery[T, V](criterion: Criterion[T]): QueryDefinition = {
+  protected def toQuery[T, V](criterion: Criterion[T]): Query = {
     val fieldName = toDBFieldName(criterion.fieldName)
 
     val qDef = criterion match {
@@ -263,15 +253,22 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
 
   protected def createIndex: Future[_] =
     client execute {
-      ElasticDsl.createIndex(indexName) shards setting.shards replicas setting.replicas mappings (
-        mapping(typeName) as fieldDefs
-      ) indexSetting("max_result_window", unboundLimit) indexSetting("mapping.total_fields.limit", setting.indexFieldsLimit) indexSetting("mapping.single_type", setting.indexSingleTypeMapping) // indexSetting("_all", false)
+      ElasticDsl.createIndex(indexName)
+        .shards(setting.shards)
+        .replicas(setting.replicas)
+        .mapping(MappingDefinition(fields = fieldDefs))
+        .indexSetting("max_result_window", unboundLimit)
+        .indexSetting("mapping.total_fields.limit", setting.indexFieldsLimit)
+        .indexSetting("mapping.single_type", setting.indexSingleTypeMapping)
     }
 
   // TODO: serialization of index names is buggy for the reindex function, therefore we pass there apostrophes
   override def reindex(newIndexName: String): Future[_] =
     client execute {
-      ElasticDsl.reindex(Indexes(Seq("\"" + indexName + "\""))) into ("\"" + newIndexName +"\"") refresh true waitForActiveShards setting.shards
+      ElasticDsl reindex (
+        Indexes(Seq("\"" + indexName + "\"")),
+        Index("\"" + newIndexName +"\"").refresh(true).waitForActiveShards(setting.shards)
+      )
     }
 
   override def getMappings: Future[Map[String, Map[String, Any]]] =
@@ -283,12 +280,15 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
       mappings.headOption.map(_.mappings).getOrElse(Map())
 
   // override if needed to customize field definitions
-  protected def fieldDefs: Iterable[FieldDefinition] = Nil
+  protected def fieldDefs: Seq[FieldDefinition] = Nil
 
   protected def existsIndex: Future[Boolean] =
     client execute {
-      IndexExistsDefinition(indexName)
-    } map(_.isExists)
+      createIndex
+      ElasticDsl.indexExists(indexName)
+    } map { res =>
+      res.result.exists
+    }
 
   protected def createIndexIfNeeded: Unit =
     result(

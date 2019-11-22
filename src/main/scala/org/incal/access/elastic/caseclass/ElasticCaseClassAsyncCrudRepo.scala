@@ -15,8 +15,8 @@ abstract class ElasticCaseClassAsyncCrudRepo[E, ID](
 ) extends ElasticAsyncCrudRepo[E, ID](indexName, typeName, setting) with ElasticCaseClassSerializer[E] {
 
   override protected def createSaveDef(entity: E, id: ID) =
-    indexInto(indexAndType) source entity id id
+    indexInto(index).source(entity)
 
   override def createUpdateDef(entity: E, id: ID) =
-    ElasticDsl.update(id) in indexAndType source entity
+    ElasticDsl.update(stringId(id)) in index source entity
 }

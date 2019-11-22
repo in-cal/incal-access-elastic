@@ -18,20 +18,18 @@ trait HasDynamicConstructor[E] {
     Seq(
       (
         ru.typeOf[Date],
-        (value: Any) =>
-          value match {
-            case ms: Long => new Date(ms)
-            case ms: Int => new Date(ms)
-            case _ => value
-          }
+        {
+          case ms: Long => new Date(ms)
+          case ms: Int => new Date(ms)
+          case value => value
+        }
       ),
       (
         ru.typeOf[UUID],
-        (value: Any) =>
-          value match {
-            case uuid: String => UUID.fromString(uuid)
-            case _ => value
-          }
+        {
+          case uuid: String => UUID.fromString(uuid)
+          case value => value
+        }
       )
     )
 
@@ -64,7 +62,7 @@ trait HasDynamicConstructor[E] {
   protected def constructorOrException(
     sourceMap: Map[String, Any]
   ): DynamicConstructor[E] = {
-    val fieldNames = sourceMap.map(_._1).toSeq
+    val fieldNames = sourceMap.keys.toSeq
     val concreteClass = sourceMap.get(concreteClassFieldName).map(_.asInstanceOf[String])
     constructorOrException(fieldNames, concreteClass)
   }

@@ -1,7 +1,6 @@
 package org.incal.access.elastic
 
-import com.sksamuel.elastic4s.indexes.IndexDefinition
-import org.elasticsearch.action.support.WriteRequest
+import com.sksamuel.elastic4s.requests.indexes.IndexRequest
 import org.incal.core.Identity
 import org.incal.core.dataaccess._
 
@@ -13,7 +12,6 @@ import scala.concurrent.Future
   *
   * @param indexName
   * @param typeName
-  * @param client
   * @param setting
   * @param identity
   * @tparam E
@@ -38,7 +36,7 @@ abstract class ElasticAsyncRepo[E, ID](
   )
 
   protected def asNative(refreshPolicy: RefreshPolicy.Value) =
-    WriteRequest.RefreshPolicy.parse(refreshPolicy.toString)
+    com.sksamuel.elastic4s.requests.common.RefreshPolicy.valueOf(refreshPolicy.toString)
 
   override def save(entities: Traversable[E]): Future[Traversable[ID]] = {
     val saveDefAndIds = entities map createSaveDefWithId
@@ -57,12 +55,12 @@ abstract class ElasticAsyncRepo[E, ID](
     handleExceptions
   )
 
-  protected def createSaveDefWithId(entity: E): (IndexDefinition, ID) = {
+  protected def createSaveDefWithId(entity: E): (IndexRequest, ID) = {
     val (id, entityWithId) = getIdWithEntity(entity)
     (createSaveDef(entityWithId, id), id)
   }
 
-  protected def createSaveDef(entity: E, id: ID): IndexDefinition
+  protected def createSaveDef(entity: E, id: ID): IndexRequest
 
   protected def getIdWithEntity(entity: E): (ID, E) =
     identity.of(entity) match {

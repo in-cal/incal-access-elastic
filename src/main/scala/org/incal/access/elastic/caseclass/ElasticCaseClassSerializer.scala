@@ -4,7 +4,6 @@ import com.sksamuel.elastic4s.Indexable
 import org.incal.access.elastic.ElasticSerializer
 import org.incal.core.util.ReflectionUtil.{getCaseClassMemberMethods, getFieldNamesAndValues}
 
-import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 import java.util.{Date, UUID}
 
@@ -32,7 +31,7 @@ trait ElasticCaseClassSerializer[E] extends ElasticSerializer[E] with HasDynamic
           )
       }.mkString(", ")
 
-      s"{${jsonString}}"
+      s"{$jsonString}"
     }
   }
 
