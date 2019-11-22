@@ -10,10 +10,9 @@ import scala.reflect.runtime.universe.TypeTag
 
 abstract class ElasticCaseClassAsyncRepo[E, ID](
   indexName: String,
-  typeName: String,
   setting: ElasticSetting)(
   implicit val typeTag: TypeTag[E], val classTag: ClassTag[E], identity: Identity[E, ID]
-) extends ElasticAsyncRepo[E, ID](indexName, typeName, setting) with ElasticCaseClassSerializer[E] {
+) extends ElasticAsyncRepo[E, ID](indexName, setting) with ElasticCaseClassSerializer[E] {
 
   override protected def createSaveDef(entity: E, id: ID): IndexRequest =
     indexInto(index) source entity id toString

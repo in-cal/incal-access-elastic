@@ -12,7 +12,6 @@ import scala.concurrent.Future
   * Abstract CRUD (create, ready, update, delete) repo for handling storage and retrieval of documents in Elastic Search.
   *
   * @param indexName
-  * @param typeName
   * @param setting
   * @param identity
   * @tparam E
@@ -23,10 +22,9 @@ import scala.concurrent.Future
   */
 abstract class ElasticAsyncCrudRepo[E, ID](
   indexName: String,
-  typeName: String,
   setting: ElasticSetting = ElasticSetting())(
   implicit identity: Identity[E, ID]
-) extends ElasticAsyncRepo[E, ID](indexName, typeName, setting)
+) extends ElasticAsyncRepo[E, ID](indexName, setting)
   with AsyncCrudRepo[E, ID]
   with ElasticCrudRepoExtra {
 

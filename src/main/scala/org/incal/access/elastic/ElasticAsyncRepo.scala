@@ -22,10 +22,9 @@ import scala.concurrent.Future
   */
 abstract class ElasticAsyncRepo[E, ID](
     indexName: String,
-    typeName: String,
     setting: ElasticSetting)(
     implicit identity: Identity[E, ID]
-  ) extends ElasticAsyncReadonlyRepo[E, ID](indexName, typeName, identity.name, setting) with AsyncRepo[E, ID] {
+  ) extends ElasticAsyncReadonlyRepo[E, ID](indexName, identity.name, setting) with AsyncRepo[E, ID] {
 
   override def save(entity: E): Future[ID] = {
     val (saveDef, id) = createSaveDefWithId(entity)

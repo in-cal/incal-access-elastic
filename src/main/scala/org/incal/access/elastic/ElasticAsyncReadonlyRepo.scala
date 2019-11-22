@@ -5,16 +5,13 @@ import java.util.Date
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
-import com.sksamuel.elastic4s.requests.searches.{SearchHit, SearchRequest, SearchResponse}
-import com.sksamuel.elastic4s.streams.ScrollPublisher
-import com.sksamuel.elastic4s.streams.ReactiveElastic._
-import com.sksamuel.elastic4s.ElasticDsl._
-import com.sksamuel.elastic4s.requests.count.CountResponse
 import com.sksamuel.elastic4s.requests.mappings.{FieldDefinition, MappingDefinition}
 import com.sksamuel.elastic4s.requests.searches.queries.term.{TermQuery, TermsQuery}
-import com.sksamuel.elastic4s.requests.searches.queries.{BoolQuery, ExistsQuery, NestedQuery, Query, RangeQuery, RegexQuery}
+import com.sksamuel.elastic4s.requests.searches.queries._
 import com.sksamuel.elastic4s.requests.searches.sort.{FieldSort, SortOrder}
-import com.sksamuel.elastic4s.{ElasticClient, ElasticDsl, Index, Indexes, Response}
+import com.sksamuel.elastic4s.requests.searches.{SearchHit, SearchRequest}
+import com.sksamuel.elastic4s.streams.ReactiveElastic._
+import com.sksamuel.elastic4s.{ElasticClient, ElasticDsl, Index, Indexes}
 import org.elasticsearch.client.{ResponseException, WarningFailureException}
 import org.incal.core.dataaccess._
 import org.reactivestreams.Publisher
