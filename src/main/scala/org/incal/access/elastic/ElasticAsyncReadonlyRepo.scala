@@ -5,14 +5,17 @@ import java.util.Date
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
-import com.sksamuel.elastic4s.requests.searches.{SearchHit, SearchRequest}
+import com.sksamuel.elastic4s.requests.searches.{SearchHit, SearchRequest, SearchResponse}
 import com.sksamuel.elastic4s.streams.ScrollPublisher
 import com.sksamuel.elastic4s.streams.ReactiveElastic._
+import com.sksamuel.elastic4s.ElasticDsl._
+import com.sksamuel.elastic4s.requests.count.CountResponse
 import com.sksamuel.elastic4s.requests.mappings.{FieldDefinition, MappingDefinition}
 import com.sksamuel.elastic4s.requests.searches.queries.term.{TermQuery, TermsQuery}
 import com.sksamuel.elastic4s.requests.searches.queries.{BoolQuery, ExistsQuery, NestedQuery, Query, RangeQuery, RegexQuery}
 import com.sksamuel.elastic4s.requests.searches.sort.{FieldSort, SortOrder}
-import com.sksamuel.elastic4s.{ElasticClient, ElasticDsl, Index, Indexes}
+import com.sksamuel.elastic4s.{ElasticClient, ElasticDsl, Index, Indexes, Response}
+import org.elasticsearch.client.{ResponseException, WarningFailureException}
 import org.incal.core.dataaccess._
 import org.reactivestreams.Publisher
 
@@ -64,27 +67,23 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
     skip: Option[Int]
   ): Future[Traversable[E]] = {
     val searchDefinition = createSearchDefinition(criteria, sort, projection, limit, skip)
-    {
-      client execute {
-        searchDefinition
-      } map { searchResult =>
-        val projectionSeq = projection.map(toDBFieldName).toSeq
+    client.execute(searchDefinition).map({ res =>
+      val projectionSeq = projection.map(toDBFieldName).toSeq
 
-        val serializationStart = new Date()
+      val serializationStart = new Date()
 
-        if (searchResult.shards.failed > 0) {
-          // TODO: dig a reason for the failure
-          throw new InCalDataAccessException(s"Search failed at ${searchResult.shards.failed} shards.")
-        }
-
-        val result: Traversable[E] = projection match {
-          case Nil => serializeSearchResult(searchResult)
-          case _ => serializeProjectionSearchHits(projectionSeq, searchResult.hits.hits)
-        }
-        logger.debug(s"Serialization for the projection '${projection.mkString(", ")}' finished in ${new Date().getTime - serializationStart.getTime} ms.")
-        result
+      if (res.result.shards.failed > 0) {
+        // TODO: dig a reason for the failure
+        throw new InCalDataAccessException(s"Search failed at ${res.result.shards.failed} shards.")
       }
-    }.recover(handleExceptions)
+
+      val result: Traversable[E] = projection match {
+        case Nil => serializeSearchResult(res.result)
+        case _ => serializeProjectionSearchHits(projectionSeq, res.result.hits.hits)
+      }
+      logger.debug(s"Serialization for the projection '${projection.mkString(", ")}' finished in ${new Date().getTime - serializationStart.getTime} ms.")
+      result
+    }).recover(handleExceptions)
   }
 
   implicit val system = ActorSystem()
@@ -239,7 +238,7 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
     val countDef = createSearchDefinition(criteria) size 0
 
     client.execute(countDef)
-      .map(_.totalHits.toInt)
+      .map(_.result.totalHits.toInt)
       .recover(handleExceptions)
   }
 
@@ -302,13 +301,13 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
     )
 
   protected def handleExceptions[A]: PartialFunction[Throwable, A] = {
-    case e: ElasticsearchTimeoutException =>
-      val message = "Elastic Search operation timed out."
+    case e: ResponseException =>
+      val message = "Elastic request failed with exception."
       logger.error(message, e)
       throw new InCalDataAccessException(message, e)
 
-    case e: ElasticsearchException =>
-      val message = "Problem with Elastic Search detected."
+    case e: WarningFailureException =>
+      val message = "Elastic request failed because it threw a warning in strict mode."
       logger.error(message, e)
       throw new InCalDataAccessException(message, e)
   }
