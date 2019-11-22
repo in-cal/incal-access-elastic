@@ -6,12 +6,11 @@ import akka.actor.ActorSystem
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import com.sksamuel.elastic4s.requests.searches.{SearchHit, SearchRequest}
-import com.sksamuel.elastic4s.streams.DocSortScrollPublisher
+import com.sksamuel.elastic4s.streams.ScrollPublisher
 import com.sksamuel.elastic4s.streams.ReactiveElastic._
-import com.sksamuel.elastic4s.ElasticDsl._
-import com.sksamuel.elastic4s.requests.ExistsRequest
 import com.sksamuel.elastic4s.requests.mappings.{FieldDefinition, MappingDefinition}
-import com.sksamuel.elastic4s.requests.searches.queries.Query
+import com.sksamuel.elastic4s.requests.searches.queries.term.{TermQuery, TermsQuery}
+import com.sksamuel.elastic4s.requests.searches.queries.{BoolQuery, ExistsQuery, NestedQuery, Query, RangeQuery, RegexQuery}
 import com.sksamuel.elastic4s.requests.searches.sort.{FieldSort, SortOrder}
 import com.sksamuel.elastic4s.{ElasticClient, ElasticDsl, Index, Indexes}
 import org.incal.core.dataaccess._
@@ -21,7 +20,6 @@ import scala.concurrent.Await.result
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
-
 /**
   * Basic (abstract) ready-only repo for searching and counting of documents in Elastic Search.
   *
@@ -105,9 +103,6 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
     val extraScrollDef = (searchDefinition scroll scrollKeepAlive)
 
     val publisher: Publisher[SearchHit] =
-      if (setting.useDocScrollSort && sort.isEmpty)
-        new DocSortScrollPublisher(client, extraScrollDef, Long.MaxValue)
-    else
         client publisher { extraScrollDef }
 
     val source = Source.fromPublisher(publisher).map { searchHit =>
@@ -189,45 +184,45 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
 
     val qDef = criterion match {
       case c: EqualsCriterion[T] =>
-        TermQueryDefinition(fieldName, toDBValue(c.value))
+        TermQuery(fieldName, toDBValue(c.value))
 
       case c: EqualsNullCriterion =>
-        new BoolQueryDefinition().not(ExistsQueryDefinition(fieldName))
+        new BoolQuery().not(ExistsQuery(fieldName))
 
       case c: RegexEqualsCriterion =>
-        RegexQueryDefinition(fieldName, toDBValue(c.value).toString)
+        RegexQuery(fieldName, toDBValue(c.value).toString)
 
       case c: RegexNotEqualsCriterion =>
-        new BoolQueryDefinition().not(RegexQueryDefinition(fieldName, toDBValue(c.value).toString))
+        new BoolQuery().not(RegexQuery(fieldName, toDBValue(c.value).toString))
 
       case c: NotEqualsCriterion[T] =>
-        new BoolQueryDefinition().not(TermQueryDefinition(fieldName, toDBValue(c.value)))
+        new BoolQuery().not(TermQuery(fieldName, toDBValue(c.value)))
 
       case c: NotEqualsNullCriterion =>
-        ExistsQueryDefinition(fieldName)
+        ExistsQuery(fieldName)
 
       case c: InCriterion[V] =>
-        TermsQueryDefinition(fieldName, c.value.map(value => toDBValue(value).toString))
+        TermsQuery(fieldName, c.value.map(value => toDBValue(value).toString))
 
       case c: NotInCriterion[V] =>
-        new BoolQueryDefinition().not(TermsQueryDefinition(fieldName, c.value.map(value => toDBValue(value).toString)))
+        new BoolQuery().not(TermsQuery(fieldName, c.value.map(value => toDBValue(value).toString)))
 
       case c: GreaterCriterion[T] =>
-        RangeQueryDefinition(fieldName) gt toDBValue(c.value).toString
+        RangeQuery(fieldName) gt toDBValue(c.value).toString
 
       case c: GreaterEqualCriterion[T] =>
-        RangeQueryDefinition(fieldName) gte toDBValue(c.value).toString
+        RangeQuery(fieldName) gte toDBValue(c.value).toString
 
       case c: LessCriterion[T] =>
-        RangeQueryDefinition(fieldName) lt toDBValue(c.value).toString
+        RangeQuery(fieldName) lt toDBValue(c.value).toString
 
       case c: LessEqualCriterion[T] =>
-        RangeQueryDefinition(fieldName) lte toDBValue(c.value).toString
+        RangeQuery(fieldName) lte toDBValue(c.value).toString
     }
 
     if (fieldName.contains(".")) {
       val path = fieldName.takeWhile(!_.equals('.'))
-      NestedQueryDefinition(path, qDef)
+      NestedQuery(path, qDef)
     } else
       qDef
   }
@@ -267,17 +262,21 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
     client execute {
       ElasticDsl reindex (
         Indexes(Seq("\"" + indexName + "\"")),
-        Index("\"" + newIndexName +"\"").refresh(true).waitForActiveShards(setting.shards)
+        Index("\"" + newIndexName +"\"")
       )
     }
 
   override def getMappings: Future[Map[String, Map[String, Any]]] =
     for {
-      mappings <- client execute {
+      res <- client execute {
         ElasticDsl.getMapping(indexName)
       }
-    } yield
-      mappings.headOption.map(_.mappings).getOrElse(Map())
+    } yield {
+      res.result map { indexMappings =>
+        indexMappings.mappings
+      }
+//      res.result.headOption.mappings.headOption.map(_.mappings).getOrElse(Map())
+    }
 
   // override if needed to customize field definitions
   protected def fieldDefs: Seq[FieldDefinition] = Nil
