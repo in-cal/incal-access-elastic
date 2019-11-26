@@ -4,7 +4,7 @@ This is a convenient repo-like access layer for Elastic Search based on [Elastic
 
 #### Installation
 
-All you need is **Scala 2.11**. To pull the library you have to add the following dependency to *build.sbt*
+All you need is **Scala 2.11** or **2.12**. To pull the library you have to add the following dependency to *build.sbt*
 
 ```
 "org.in-cal" %% "incal-access-elastic" % "0.2.4"
@@ -16,6 +16,16 @@ or to *pom.xml* (if you use maven)
 <dependency>
     <groupId>org.in-cal</groupId>
     <artifactId>incal-access-elastic_2.11</artifactId>
+    <version>0.2.4</version>
+</dependency>
+```
+
+respectively for Scala 2.12 as
+
+```
+<dependency>
+    <groupId>org.in-cal</groupId>
+    <artifactId>incal-access-elastic_2.12</artifactId>
     <version>0.2.4</version>
 </dependency>
 ```
