@@ -4,7 +4,7 @@ organization := "org.in-cal"
 
 name := "incal-access-elastic"
 
-version := "0.2.3"
+version := "0.2.4"
 
 description := "Provides a convenient access layer for Elastic Search based on Elastic4S library."
 
@@ -19,7 +19,7 @@ libraryDependencies ++= Seq(
   "com.sksamuel.elastic4s" %% "elastic4s-http" % esVersion,
   "com.sksamuel.elastic4s" %% "elastic4s-http-streams" % esVersion,
   "javax.inject" % "javax.inject" % "1",
-  "org.in-cal" %% "incal-core" % "0.2.2",
+  "org.in-cal" %% "incal-core" % "0.2.3",
   "org.apache.commons" % "commons-lang3" % "3.5",
   "org.slf4j" % "slf4j-api" % "1.7.21"
 )

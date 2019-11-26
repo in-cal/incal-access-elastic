@@ -2,6 +2,7 @@ package org.incal.access.elastic.caseclass
 
 import java.util.{Date, UUID}
 
+import org.incal.core.dataaccess.InCalDataAccessException
 import org.incal.core.util.{DynamicConstructor, DynamicConstructorFinder}
 
 import scala.collection.mutable.{Map => MMap}
@@ -14,26 +15,9 @@ trait HasDynamicConstructor[E] {
 
   protected val concreteClassFieldName = "concreteClass"
 
+  // default type value converters
   protected val typeValueConverters: Seq[(ru.Type, Any => Any)] =
-    Seq(
-      (
-        ru.typeOf[Date],
-        (value: Any) =>
-          value match {
-            case ms: Long => new Date(ms)
-            case ms: Int => new Date(ms)
-            case _ => value
-          }
-      ),
-      (
-        ru.typeOf[UUID],
-        (value: Any) =>
-          value match {
-            case uuid: String => UUID.fromString(uuid)
-            case _ => value
-          }
-      )
-    )
+    Seq(TypeValueConverters.date, TypeValueConverters.uuid)
 
   protected val defaultConstructorFinder = DynamicConstructorFinder.apply[E]
   protected val classNameConstructorFinderMap = MMap[String, DynamicConstructorFinder[E]]()
@@ -70,4 +54,29 @@ trait HasDynamicConstructor[E] {
   }
 
   protected def unrename(fieldName: String): String = fieldName
+}
+
+object TypeValueConverters {
+
+  val date: (ru.Type, Any => Any) = (
+    ru.typeOf[Date], (_: Any) match {
+      case ms: Long => new Date(ms)
+      case ms: Int => new Date(ms)
+      case value: Any => value
+    }
+  )
+
+  val uuid: (ru.Type, Any => Any) = (
+    ru.typeOf[UUID], (_: Any) match {
+      case uuid: String => UUID.fromString(uuid)
+      case value: Any => value
+    }
+  )
+
+  def enum[E <: Enumeration : TypeTag](enum: E) = (
+    ru.typeOf[E#Value], (_: Any) match {
+      case string: String => enum.withName(string)
+      case value: Any => throw new InCalDataAccessException(s"Enum ${enum} expects a String value got ${value}.")
+    }
+  )
 }

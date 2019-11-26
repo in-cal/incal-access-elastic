@@ -64,7 +64,10 @@ trait ElasticClientProvider extends Provider[HttpClient] {
       ElasticsearchClientUri(s"elasticsearch://$host:$port", List((host, port)), finalOptions),
       new RequestConfigCallback {
         override def customizeRequestConfig(requestConfigBuilder: RequestConfig.Builder) =
-          requestConfigBuilder.setConnectionRequestTimeout(connectionRequestTimeout).setConnectTimeout(connectionTimeout).setSocketTimeout(socketTimeout)
+          requestConfigBuilder
+            .setConnectionRequestTimeout(connectionRequestTimeout)
+            .setConnectTimeout(connectionTimeout)
+            .setSocketTimeout(socketTimeout)
       },
       NoOpHttpClientConfigCallback
     )

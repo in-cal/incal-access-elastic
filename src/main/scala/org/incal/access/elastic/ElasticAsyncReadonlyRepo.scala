@@ -262,9 +262,13 @@ abstract class ElasticAsyncReadonlyRepo[E, ID](
 
   protected def createIndex: Future[_] =
     client execute {
-      ElasticDsl.createIndex(indexName) shards setting.shards replicas setting.replicas mappings (
-        mapping(typeName) as fieldDefs
-      ) indexSetting("max_result_window", unboundLimit) indexSetting("mapping.total_fields.limit", setting.indexFieldsLimit) indexSetting("mapping.single_type", setting.indexSingleTypeMapping) // indexSetting("_all", false)
+      ElasticDsl.createIndex(indexName)
+        .shards(setting.shards)
+        .replicas(setting.replicas)
+        .mappings(mapping(typeName) as fieldDefs)
+        .indexSetting("max_result_window", unboundLimit)
+        .indexSetting("mapping.total_fields.limit", setting.indexFieldsLimit)
+        .indexSetting("mapping.single_type", setting.indexSingleTypeMapping) // indexSetting("_all", false)
     }
 
   // TODO: serialization of index names is buggy for the reindex function, therefore we pass there apostrophes
