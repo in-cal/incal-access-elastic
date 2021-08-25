@@ -4,11 +4,11 @@ organization := "org.in-cal"
 
 name := "incal-access-elastic"
 
-version := "0.3.0"
+version := "0.3.1-SNAPSHOT"
 
 description := "Provides a convenient access layer for Elastic Search based on Elastic4S library."
 
-isSnapshot := false
+isSnapshot := true
 
 scalaVersion := "2.11.12" // "2.12.10"
 
